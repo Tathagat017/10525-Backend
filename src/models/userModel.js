@@ -6,6 +6,12 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     profilePictureUrl: { type: String },
+    households: [
+      {
+        householdId: { type: mongoose.Schema.Types.ObjectId, ref: "Household" },
+        role: { type: String, enum: ["owner", "member"], default: "member" },
+      },
+    ],
   },
   { timestamps: true }
 );

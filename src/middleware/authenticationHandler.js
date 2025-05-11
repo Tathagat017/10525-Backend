@@ -11,25 +11,26 @@ const AuthenticationHandler = asyncHandler(async (req, res, next) => {
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
+    token = req.headers.authorization.split(" ")[1];
 
-      if (token) {
-        jwt.verify(token, process.env.JWT_SECRET_KEY, async (err, decoded) => {
-          if (decoded) {
-            req.user = await User.findById(decoded.id).select("-password");
-            next();
-          } else {
-            res.status(401).send({ message: err.message });
-          }
-        });
-      } else {
-        res.status(401).send({ message: "Please login first" });
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+      const user = await User.findOne({ _id: decoded._id }).select("-password");
+      req.user = user;
+
+      if (!req.user) {
+        res.status(401);
+        throw new Error("User not found");
       }
+
+      next();
     } catch (error) {
       res.status(401);
       throw new Error("Not authorized, token failed");
     }
+  } else {
+    res.status(401);
+    throw new Error("No token, authorization denied");
   }
 });
 

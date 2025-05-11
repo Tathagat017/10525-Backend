@@ -3,6 +3,7 @@ const {
   registerUser,
   loginUser,
   allUsers,
+  getProfile,
 } = require("../controllers/userController");
 const {
   AuthenticationHandler,
@@ -10,8 +11,9 @@ const {
 
 const router = express.Router();
 
-router.route("/").get(AuthenticationHandler, allUsers);
+router.route("/allUsers").post(AuthenticationHandler, allUsers);
 router.route("/register").post(registerUser);
 router.post("/login", loginUser);
+router.post("/profile", AuthenticationHandler, getProfile);
 
 module.exports = { userRouter: router };
