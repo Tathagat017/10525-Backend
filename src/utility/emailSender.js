@@ -17,7 +17,7 @@ const sendInviteEmail = async (email, inviteCode, householdName) => {
     html: `
       <p>You've been invited to join <b>${householdName}</b>.</p>
       <p>Use this invite code: <strong>${inviteCode}</strong></p>
-      <a href="${process.env.FRONTEND_URL}/join?code=${inviteCode}" 
+      <a href="${process.env.FRONTEND_URL}/join/${inviteCode}" 
          style="background: #4CAF50; color: white; padding: 10px 20px; text-decoration: none;">
          Join Household
       </a>
