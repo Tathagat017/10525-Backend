@@ -7,6 +7,7 @@ const {
   getExpenses,
   getBalances,
   getSettleUpSuggestions,
+  payShare,
 } = require("../controllers/expenseController");
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.get(
   AuthenticationHandler,
   getSettleUpSuggestions
 );
+router.post("/pay/:expenseId", AuthenticationHandler, payShare);
 
 module.exports = { expenseRouter: router };

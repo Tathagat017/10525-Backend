@@ -23,8 +23,11 @@ const expenseSchema = new mongoose.Schema(
           required: true,
         },
         share: { type: Number, required: true },
+        isPaid: { type: Boolean, default: false },
+        amountPaid: { type: Number, default: 0 },
       },
     ],
+    isCompletelyPaid: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

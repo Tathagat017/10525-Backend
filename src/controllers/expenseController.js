@@ -44,7 +44,6 @@ const getExpenses = asyncHandler(async (req, res) => {
   res.json(expenses);
 });
 
-// Get net balances per member
 const getBalances = asyncHandler(async (req, res) => {
   const { householdId } = req.params;
   const expenses = await Expense.find({ householdId });
@@ -52,20 +51,29 @@ const getBalances = asyncHandler(async (req, res) => {
   const balanceMap = {};
 
   for (const exp of expenses) {
-    const { amount, payer, participants } = exp;
-    for (const { user, share } of participants) {
-      const owedAmount = amount * share;
+    const { payer, participants, amount } = exp;
 
-      // Owed
-      balanceMap[user] = (balanceMap[user] || 0) - owedAmount;
+    // Add the full amount to payer's balance
+    balanceMap[payer] = (balanceMap[payer] || 0) + amount;
 
-      // Paid
-      balanceMap[payer] = (balanceMap[payer] || 0) + owedAmount;
+    // Subtract each participant's share
+    for (const { user, share, amountPaid } of participants) {
+      const shareAmount = amount * share;
+      balanceMap[user] = (balanceMap[user] || 0) - shareAmount;
+
+      // If participant has paid, add their payment to their balance
+      if (amountPaid > 0) {
+        balanceMap[user] = (balanceMap[user] || 0) + amountPaid;
+        balanceMap[payer] = (balanceMap[payer] || 0) - amountPaid;
+      }
     }
   }
 
-  res.json(balanceMap); // { userId1: -50, userId2: +50, ... }
+  res.json(balanceMap);
 });
+
+// Settle up suggestion (minimize transactions)
+// ... existing code ...
 
 // Settle up suggestion (minimize transactions)
 const getSettleUpSuggestions = asyncHandler(async (req, res) => {
@@ -74,12 +82,23 @@ const getSettleUpSuggestions = asyncHandler(async (req, res) => {
 
   const balanceMap = {};
 
+  // Calculate balances using the same logic as getBalances
   for (const exp of expenses) {
-    const { amount, payer, participants } = exp;
-    for (const { user, share } of participants) {
-      const owedAmount = amount * share;
-      balanceMap[user] = (balanceMap[user] || 0) - owedAmount;
-      balanceMap[payer] = (balanceMap[payer] || 0) + owedAmount;
+    const { payer, participants, amount } = exp;
+
+    // Add the full amount to payer's balance
+    balanceMap[payer] = (balanceMap[payer] || 0) + amount;
+
+    // Subtract each participant's share
+    for (const { user, share, amountPaid } of participants) {
+      const shareAmount = amount * share;
+      balanceMap[user] = (balanceMap[user] || 0) - shareAmount;
+
+      // If participant has paid, add their payment to their balance
+      if (amountPaid > 0) {
+        balanceMap[user] = (balanceMap[user] || 0) + amountPaid;
+        balanceMap[payer] = (balanceMap[payer] || 0) - amountPaid;
+      }
     }
   }
 
@@ -119,9 +138,53 @@ const getSettleUpSuggestions = asyncHandler(async (req, res) => {
   res.json(transactions);
 });
 
+// Pay your share
+const payShare = asyncHandler(async (req, res) => {
+  const { expenseId } = req.params;
+  const userId = req.user._id;
+  const { amount } = req.body;
+
+  const expense = await Expense.findById(expenseId);
+  if (!expense) {
+    res.status(404);
+    throw new Error("Expense not found");
+  }
+
+  const participant = expense.participants.find(
+    (p) => p.user.toString() === userId.toString()
+  );
+
+  if (!participant) {
+    res.status(403);
+    throw new Error("You are not a participant of this expense");
+  }
+
+  if (participant.isPaid) {
+    res.status(400);
+    throw new Error("You already paid your share");
+  }
+
+  const expectedAmount = expense.amount * participant.share;
+  if (Math.abs(amount - expectedAmount) > 0.01) {
+    res.status(400);
+    throw new Error("Incorrect amount paid");
+  }
+
+  participant.isPaid = true;
+  participant.amountPaid = amount;
+
+  const allPaid = expense.participants.every((p) => p.isPaid);
+  expense.isCompletelyPaid = allPaid;
+
+  await expense.save();
+
+  res.json({ success: true, expense });
+});
+
 module.exports = {
   createExpense,
   getExpenses,
   getBalances,
   getSettleUpSuggestions,
+  payShare,
 };
