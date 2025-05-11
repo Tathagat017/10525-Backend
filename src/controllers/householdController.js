@@ -243,6 +243,11 @@ const deleteHousehold = asyncHandler(async (req, res) => {
 
   await household.deleteOne();
 
+  await User.updateMany(
+    { "households.householdId": householdId },
+    { $pull: { households: { householdId } } }
+  );
+
   res.json({ success: true, message: "Household deleted successfully" });
 });
 
