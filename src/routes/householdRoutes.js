@@ -21,7 +21,11 @@ router.post("/", AuthenticationHandler, createHousehold);
 router.post("/join", AuthenticationHandler, joinHousehold);
 router.post("/mine", AuthenticationHandler, getUserHouseholds);
 router.post("/single/:householdId/invite", AuthenticationHandler, sendInvite);
-router.post("/bulk/:householdId/invite", sendBulkInvites);
+router.post(
+  "/bulk/:householdId/invite",
+  AuthenticationHandler,
+  sendBulkInvites
+);
 router.post(
   "/deleteMember/:householdId/members/:userId",
   AuthenticationHandler,
