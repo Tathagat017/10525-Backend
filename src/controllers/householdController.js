@@ -221,6 +221,10 @@ const removeSelfFromHousehold = asyncHandler(async (req, res) => {
 
   await household.save();
 
+  await User.findByIdAndUpdate(userId, {
+    $pull: { households: { householdId } },
+  });
+
   res.json({ success: true, message: "You have left the household" });
 });
 
