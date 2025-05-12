@@ -8,11 +8,13 @@ const {
   getChores,
   completeChore,
   getChoreById,
+  deleteChore,
 } = require("../controllers/choreController");
 
 router.post("/add", AuthenticationHandler, createChore);
 router.post("/allChores/:householdId", AuthenticationHandler, getChores);
 router.get("/singleChore/:choreId", AuthenticationHandler, getChoreById);
 router.patch("/mark/:choreId/complete", AuthenticationHandler, completeChore);
+router.post("/delete/:choreId", AuthenticationHandler, deleteChore);
 
 module.exports = { choreRouter: router };

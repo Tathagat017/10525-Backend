@@ -10,7 +10,24 @@ const createChore = asyncHandler(async (req, res) => {
   const household = await Household.findById(householdId).populate("members");
   if (!household) throw new Error("Household not found");
 
-  const firstAssignee = assignedTo ?? household.members[0] ?? req.user;
+  // Validate that the assigned user is a member of the household
+  if (assignedTo) {
+    const isMember = household.members.some(
+      (member) => member._id.toString() === assignedTo.toString()
+    );
+    const isOwner = household.owner.toString() === assignedTo.toString();
+
+    if (!isMember && !isOwner) {
+      res.status(400);
+      throw new Error(
+        "Assigned user must be a member or owner of the household"
+      );
+    }
+  }
+
+  // Use assignedTo if provided, otherwise use the first member
+  const firstAssigneeId =
+    assignedTo?.toString() || household.members[0]._id.toString();
 
   const now = new Date();
   const lastDate = new Date(now);
@@ -31,7 +48,7 @@ const createChore = asyncHandler(async (req, res) => {
     name,
     frequency,
     householdId,
-    assignedTo: firstAssignee._id,
+    assignedTo: firstAssigneeId,
     rotationIndex: 0,
     dueDate: lastDate,
     isOverDue: false,
@@ -67,12 +84,14 @@ const getChores = asyncHandler(async (req, res) => {
         chore.isOverDue = isNowOverdue;
       }
 
-      // Assign user based on rotationIndex and household members
-      if (members.length > 0 && chore.rotationIndex < members.length) {
-        const user = members[chore.rotationIndex % members.length];
-        chore.assignedTo = user._id;
-      } else {
-        chore.assignedTo = null; // fallback if no members
+      // Only update rotation-based assignment if there's no manual assignment
+      if (!chore.assignedTo && members.length > 0) {
+        if (chore.rotationIndex < members.length) {
+          const user = members[chore.rotationIndex % members.length];
+          chore.assignedTo = user._id;
+        } else {
+          chore.assignedTo = null; // fallback if no members
+        }
       }
 
       await chore.save();
@@ -94,9 +113,19 @@ const completeChore = asyncHandler(async (req, res) => {
   const household = await Household.findById(chore.householdId).populate(
     "members"
   );
-  const members = household.members;
-  const now = new Date();
+  if (!household) throw new Error("Household not found");
 
+  // Create a combined array of members and owner for rotation
+  const allParticipants = [...household.members];
+  if (
+    !allParticipants.some(
+      (member) => member._id.toString() === household.owner.toString()
+    )
+  ) {
+    allParticipants.push(household.owner);
+  }
+
+  const now = new Date();
   const wasMissed = chore.dueDate < now; // was overdue
 
   // ✅ 1. Log this completion
@@ -120,13 +149,13 @@ const completeChore = asyncHandler(async (req, res) => {
   // ✅ 3. Reset overdue flag
   chore.isOverDue = false;
 
-  // ✅ 4. Rotate assignedTo if there are multiple members
-  if (members.length <= 1) {
+  // ✅ 4. Rotate assignedTo if there are multiple participants
+  if (allParticipants.length <= 1) {
     chore.assignedTo = req.user._id;
     chore.rotationIndex = 0;
   } else {
-    const nextIndex = (chore.rotationIndex + 1) % members.length;
-    chore.assignedTo = members[nextIndex]._id ?? req.user._id;
+    const nextIndex = (chore.rotationIndex + 1) % allParticipants.length;
+    chore.assignedTo = allParticipants[nextIndex]._id ?? req.user._id;
     chore.rotationIndex = nextIndex;
   }
 
@@ -140,4 +169,38 @@ const getChoreById = asyncHandler(async (req, res) => {
   res.json(chore);
 });
 
-module.exports = { createChore, getChores, completeChore, getChoreById };
+const deleteChore = asyncHandler(async (req, res) => {
+  const { choreId } = req.params;
+
+  const chore = await Chore.findById(choreId);
+  if (!chore) {
+    res.status(404);
+    throw new Error("Chore not found");
+  }
+
+  const household = await Household.findById(chore.householdId);
+  if (!household) {
+    res.status(404);
+    throw new Error("Associated household not found");
+  }
+
+  // Check if the logged-in user is the owner of the household
+  if (household.owner.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Only the household owner can delete chores");
+  }
+
+  await chore.deleteOne();
+
+  res
+    .status(200)
+    .json({ success: true, message: "Chore deleted successfully" });
+});
+
+module.exports = {
+  createChore,
+  getChores,
+  completeChore,
+  getChoreById,
+  deleteChore,
+};
